@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gurulink-bgLight text-gurulink-text;
+  font-family: Arial, sans-serif;
+}
+
+
