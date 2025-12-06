@@ -83,10 +83,14 @@ nano .env
 
 Add the following content (replace with your actual backend URL):
 ```
-VITE_API_URL=https://your-backend-domain.com
+VITE_API_BASE_URL=https://your-backend-domain.com
 ```
 
-**Important**: Replace `https://your-backend-domain.com` with your actual backend API URL.
+**Important**: 
+- Replace `https://your-backend-domain.com` with your actual backend API URL
+- Use `VITE_API_BASE_URL` (not `VITE_API_URL`)
+- Do NOT include a trailing slash at the end
+- Example: `VITE_API_BASE_URL=https://api.gurulink.app`
 
 Save and exit (Ctrl+X, then Y, then Enter)
 
@@ -215,11 +219,26 @@ chmod +x /var/www/crm/deploy.sh
 
 ## Step 12: Update API Configuration
 
-Make sure your `crm/src/api.js` file uses the correct API URL. If you need to change it:
+If you need to change the backend API URL:
 
-1. Update the `.env` file with `VITE_API_URL`
-2. Rebuild: `npm run build`
-3. Restart nginx: `systemctl restart nginx`
+1. Update the `.env` file with `VITE_API_BASE_URL`:
+   ```bash
+   nano /var/www/crm/.env
+   ```
+   Set: `VITE_API_BASE_URL=https://your-backend-url.com`
+
+2. **IMPORTANT**: Rebuild the application (environment variables are only included at build time):
+   ```bash
+   cd /var/www/crm
+   npm run build
+   ```
+
+3. Restart nginx:
+   ```bash
+   systemctl restart nginx
+   ```
+
+**Note**: You MUST rebuild after changing `.env` - just restarting nginx is not enough!
 
 ## Troubleshooting
 

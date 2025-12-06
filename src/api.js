@@ -12,6 +12,21 @@ async function handle(res) {
     } catch {
       /* ignore */
     }
+    
+    // Provide more specific error messages
+    if (res.status === 0 || res.status === 500) {
+      throw new Error(`Cannot connect to backend at ${API_BASE}. Please check:\n1. Backend server is running\n2. VITE_API_BASE_URL is set correctly in .env\n3. Backend CORS allows your CRM domain`);
+    }
+    
+    if (res.status === 404) {
+      throw new Error(`Backend endpoint not found. Check if API URL is correct: ${API_BASE}`);
+    }
+    
+    if (res.status === 403 || res.status === 401) {
+      const message = data?.error || data?.message || res.statusText || 'Authentication failed';
+      throw new Error(message);
+    }
+    
     const message = data?.error || data?.message || res.statusText || 'Request failed';
     throw new Error(message);
   }
@@ -28,13 +43,23 @@ function getAuthHeaders() {
 }
 
 export async function adminLogin(username, password) {
-  const res = await fetch(`${API_BASE}/api/admin/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
-    credentials: 'include'
-  });
-  return handle(res);
+  try {
+    const res = await fetch(`${API_BASE}/api/admin/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+      credentials: 'include'
+    });
+    return handle(res);
+  } catch (err) {
+    // Network errors (CORS, connection refused, etc.)
+    if (err.name === 'TypeError' || err.message.includes('fetch')) {
+      console.error('[API] Connection error:', err);
+      console.error('[API] Attempted URL:', `${API_BASE}/api/admin/auth/login`);
+      throw new Error(`Cannot connect to backend at ${API_BASE}.\n\nPossible causes:\n1. Backend server is not running\n2. Wrong API URL - check VITE_API_BASE_URL in .env file\n3. CORS error - backend must allow your CRM domain\n4. Network/firewall blocking connection\n\nCurrent API URL: ${API_BASE}`);
+    }
+    throw err;
+  }
 }
 
 export async function verifyAdminToken() {

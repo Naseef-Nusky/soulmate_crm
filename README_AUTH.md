@@ -36,3 +36,4 @@ Currently supported roles:
 - Passwords are hashed using SHA-256
 - In production, consider using JWT tokens instead of base64 tokens
 
+

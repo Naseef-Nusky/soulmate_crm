@@ -3,8 +3,8 @@ import { adminLogin } from './api.js';
 import { setAuthToken, setAdminUser } from './auth.js';
 
 export default function Login({ onLogin }) {
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -95,7 +95,7 @@ export default function Login({ onLogin }) {
                 required
                 className="w-full rounded-xl border px-4 py-2.5 text-base bg-white"
                 style={{ borderColor: '#E5E7EB', color: '#111827' }}
-                placeholder="admin (default)"
+                placeholder="Enter username"
                 autoFocus
               />
             </div>
@@ -112,7 +112,7 @@ export default function Login({ onLogin }) {
                   required
                   className="w-full rounded-xl border px-4 py-2.5 pr-12 text-base bg-white"
                   style={{ borderColor: '#E5E7EB', color: '#111827' }}
-                  placeholder="admin123 (default)"
+                  placeholder="Enter password"
                 />
                 <button
                   type="button"

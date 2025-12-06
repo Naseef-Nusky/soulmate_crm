@@ -59,8 +59,9 @@ cd $CRM_DIR
 # Check if .env exists
 if [ ! -f ".env" ]; then
     echo -e "${YELLOW}⚙️  Creating .env file...${NC}"
-    echo "VITE_API_URL=https://api.gurulink.app" > .env
+    echo "VITE_API_BASE_URL=https://api.gurulink.app" > .env
     echo -e "${GREEN}✅ .env file created. Please edit it with your backend URL:${NC}"
+    echo -e "${YELLOW}⚠️  IMPORTANT: Use VITE_API_BASE_URL (not VITE_API_URL)${NC}"
     echo "  nano $CRM_DIR/.env"
 fi
 
