@@ -2,14 +2,23 @@ import React, { useEffect, useState } from 'react';
 import {
   fetchCustomers,
   adminCancelSubscription,
+  adminRestoreSubscription,
   adminDeactivateAccount,
+  adminActivateAccount,
   fetchCustomerDetail,
+  verifyAdminToken,
 } from './api.js';
+import { isAuthenticated, getAdminUser, removeAuthToken, setAdminUser } from './auth.js';
+import Login from './Login.jsx';
+import Profile from './Profile.jsx';
+import CreateUser from './CreateUser.jsx';
+import Notifications from './Notifications.jsx';
+import { getUnreadNotificationCount } from './api.js';
 
 function StatusBadge({ active }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-semibold ${
         active
           ? 'bg-green-50 text-green-700 border border-green-200'
           : 'bg-red-50 text-red-700 border border-red-200'
@@ -25,9 +34,9 @@ function StatusBadge({ active }) {
   );
 }
 
-function ActionButton({ children, onClick, variant = 'primary', disabled }) {
+function ActionButton({ children, onClick, variant = 'primary', disabled, type, className = '' }) {
   const base =
-    'inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed';
+    'inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed';
   const styles =
     variant === 'danger'
       ? 'bg-red-600 text-white hover:bg-red-500'
@@ -36,19 +45,29 @@ function ActionButton({ children, onClick, variant = 'primary', disabled }) {
       : 'bg-gurulink-accent text-gurulink-primary hover:bg-gurulink-accentHover';
 
   return (
-    <button className={`${base} ${styles}`} onClick={onClick} disabled={disabled}>
+    <button
+      type={type || 'button'}
+      className={`${base} ${styles} ${className}`}
+      onClick={onClick}
+      disabled={disabled}
+    >
       {children}
     </button>
   );
 }
 
 export default function App() {
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [admin, setAdmin] = useState(null);
+  const [activeTab, setActiveTab] = useState('customers'); // 'customers', 'profile', 'create-user'
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [workingEmail, setWorkingEmail] = useState('');
   const [cancelledEmails, setCancelledEmails] = useState([]);
   const [filterText, setFilterText] = useState('');
+  const [filterUid, setFilterUid] = useState('');
   const [showOnlyActive, setShowOnlyActive] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState('');
   const [detail, setDetail] = useState(null);
@@ -57,6 +76,53 @@ export default function App() {
   const [perPage, setPerPage] = useState(10);
   const PAGE_SIZE = 10;
   const showDetail = !!selectedEmail;
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+
+  // Check if user is viewer (read-only)
+  const isViewer = admin?.role === 'viewer';
+  const canPerformActions = !isViewer; // Only non-viewers can perform actions
+
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (!isAuthenticated()) {
+        setAuthLoading(false);
+        return;
+      }
+
+      try {
+        const data = await verifyAdminToken();
+        if (data.ok && data.admin) {
+          setAdminUser(data.admin);
+          setAdmin(data.admin);
+          setAuthenticated(true);
+        } else {
+          removeAuthToken();
+        }
+      } catch {
+        removeAuthToken();
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  const handleLogin = (adminUser) => {
+    setAdmin(adminUser);
+    setAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    if (window.confirm('Are you sure you want to log out?')) {
+      removeAuthToken();
+      setAuthenticated(false);
+      setAdmin(null);
+      setCustomers([]);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -96,8 +162,28 @@ export default function App() {
   };
 
   useEffect(() => {
-    load();
-  }, []);
+    if (authenticated) {
+      load();
+      // Load unread notification count on mount
+      refreshNotificationCount();
+      // Auto-refresh notification count every 10 seconds
+      const notificationInterval = setInterval(() => {
+        refreshNotificationCount();
+      }, 10000); // Refresh every 10 seconds
+      return () => clearInterval(notificationInterval);
+    }
+  }, [authenticated]);
+
+  const refreshNotificationCount = async () => {
+    try {
+      const data = await getUnreadNotificationCount();
+      if (data.ok) {
+        setUnreadNotificationCount(data.count || 0);
+      }
+    } catch (err) {
+      // Silently fail for notification count
+    }
+  };
 
   const loadDetail = async (email) => {
     setSelectedEmail(email);
@@ -137,6 +223,12 @@ export default function App() {
         prev.includes(email) ? prev : [...prev, email]
       );
       await load();
+      // Refresh notifications after action
+      refreshNotificationCount();
+      // Reload detail if popup is open for this customer
+      if (selectedEmail === email) {
+        await loadDetail(email);
+      }
     } catch (err) {
       const msg = err.message || '';
       // If API says there's no active subscription, treat it as already cancelled
@@ -147,6 +239,10 @@ export default function App() {
         setCancelledEmails((prev) =>
           prev.includes(email) ? prev : [...prev, email]
         );
+        // Reload detail if popup is open for this customer
+        if (selectedEmail === email) {
+          await loadDetail(email);
+        }
       } else {
         setError(msg || 'Failed to cancel subscription');
       }
@@ -164,8 +260,57 @@ export default function App() {
     try {
       await adminDeactivateAccount(email);
       await load();
+      // Refresh notifications after action
+      refreshNotificationCount();
+      // Reload detail if popup is open for this customer
+      if (selectedEmail === email) {
+        await loadDetail(email);
+      }
     } catch (err) {
       setError(err.message || 'Failed to deactivate account');
+    } finally {
+      setWorkingEmail('');
+    }
+  };
+
+  const handleRestoreSubscription = async (email) => {
+    if (!window.confirm(`Reactivate subscription for ${email}?`)) return;
+    setWorkingEmail(email);
+    setError('');
+    try {
+      await adminRestoreSubscription(email);
+      setCancelledEmails((prev) => prev.filter((e) => e !== email));
+      await load();
+      // Refresh notifications after action
+      refreshNotificationCount();
+      // Reload detail if it's open
+      if (selectedEmail === email) {
+        await loadDetail(email);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to reactivate subscription');
+    } finally {
+      setWorkingEmail('');
+    }
+  };
+
+  const handleActivate = async (email) => {
+    if (!window.confirm(`Activate account for ${email}? They will be able to log in again.`)) {
+      return;
+    }
+    setWorkingEmail(email);
+    setError('');
+    try {
+      await adminActivateAccount(email);
+      await load();
+      // Refresh notifications after action
+      refreshNotificationCount();
+      // Reload detail if popup is open for this customer
+      if (selectedEmail === email) {
+        await loadDetail(email);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to activate account');
     } finally {
       setWorkingEmail('');
     }
@@ -176,8 +321,15 @@ export default function App() {
       !filterText ||
       c.email.toLowerCase().includes(filterText.toLowerCase()) ||
       (c.name || '').toLowerCase().includes(filterText.toLowerCase());
+
+    const matchesUid =
+      !filterUid ||
+      String(c.id || '')
+        .toLowerCase()
+        .includes(filterUid.toLowerCase());
+
     const matchesActive = !showOnlyActive || c.is_active !== false;
-    return matchesText && matchesActive;
+    return matchesText && matchesUid && matchesActive;
   });
 
   const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / perPage));
@@ -186,6 +338,21 @@ export default function App() {
     (currentPage - 1) * perPage,
     currentPage * perPage
   );
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gurulink-bgLight flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-t-transparent mb-4" style={{ borderColor: '#D4A34B' }} />
+          <p className="text-sm text-gurulink-textSecondary">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authenticated) {
+    return <Login onLogin={handleLogin} />;
+  }
 
   return (
     <div className="min-h-screen bg-gurulink-bgLight">
@@ -200,37 +367,123 @@ export default function App() {
               decoding="async"
             />
             <div>
-              <div className="text-base font-bold tracking-wide text-gurulink-primary">
+              <div className="text-lg font-bold tracking-wide text-gurulink-primary">
                 GuruLink CRM
               </div>
-              <div className="text-xs text-gurulink-textSecondary">Customer & Subscription Management</div>
+              <div className="text-sm text-gurulink-textSecondary">Customer & Subscription Management</div>
             </div>
           </div>
-          <div className="flex items-center gap-3 text-xs text-gurulink-textSecondary">
-            <span className="hidden sm:inline">Backend: /api/admin</span>
-            <ActionButton variant="secondary" onClick={load} disabled={loading}>
+          <div className="flex items-center gap-3 text-sm">
+            {admin && (
+              <div className="hidden sm:flex items-center gap-2 text-gurulink-textSecondary">
+                <span className="text-gurulink-textMuted">Logged in as:</span>
+                <span className="font-semibold text-gurulink-primary">{admin.username}</span>
+                {admin.role && (
+                  <span className="px-2 py-0.5 rounded text-xs font-semibold bg-gurulink-accent/20 text-gurulink-accent border border-gurulink-accent/30">
+                    {admin.role}
+                  </span>
+                )}
+              </div>
+            )}
+            {/* Notifications Button */}
+            <button
+              onClick={() => {
+                setShowNotifications(true);
+                refreshNotificationCount();
+              }}
+              className="relative inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold transition-colors border border-gurulink-primary text-gurulink-primary hover:bg-gurulink-bgSoft"
+              title="Notifications"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                />
+              </svg>
+              {unreadNotificationCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white">
+                  {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                </span>
+              )}
+            </button>
+            <ActionButton variant="secondary" onClick={load} disabled={loading || isViewer}>
               {loading ? 'Refreshing…' : 'Refresh'}
+            </ActionButton>
+            <ActionButton variant="danger" onClick={handleLogout}>
+              Logout
             </ActionButton>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6 space-y-4">
-        {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
-            {error}
-          </div>
-        )}
+        {/* Navigation Tabs */}
+        <div className="flex gap-2 border-b border-gurulink-border">
+          <button
+            onClick={() => setActiveTab('customers')}
+            className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${
+              activeTab === 'customers'
+                ? 'border-gurulink-accent text-gurulink-primary'
+                : 'border-transparent text-gurulink-textSecondary hover:text-gurulink-primary'
+            }`}
+          >
+            Customers
+          </button>
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${
+              activeTab === 'profile'
+                ? 'border-gurulink-accent text-gurulink-primary'
+                : 'border-transparent text-gurulink-textSecondary hover:text-gurulink-primary'
+            }`}
+          >
+            Profile
+          </button>
+          {(admin?.role === 'admin' || !admin?.role) && (
+            <button
+              onClick={() => setActiveTab('create-user')}
+              className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${
+                activeTab === 'create-user'
+                  ? 'border-gurulink-accent text-gurulink-primary'
+                  : 'border-transparent text-gurulink-textSecondary hover:text-gurulink-primary'
+              }`}
+            >
+              Create User
+            </button>
+          )}
+        </div>
 
-        <section className="rounded-lg border border-gurulink-border bg-gurulink-bg shadow-lg">
+        {/* Tab Content */}
+        {activeTab === 'profile' && <Profile admin={admin} />}
+        {activeTab === 'create-user' && (
+          <CreateUser
+            onUserCreated={() => {
+              // Optionally refresh profile if needed
+            }}
+          />
+        )}
+        {activeTab === 'customers' && (
+          <>
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                {error}
+              </div>
+            )}
+
+            <section className="rounded-lg border border-gurulink-border bg-gurulink-bg shadow-lg">
           <div className="flex items-center justify-between border-b border-gurulink-border px-4 py-3 bg-gurulink-bgSoft">
             <div>
-              <h2 className="text-base font-bold text-gurulink-primary">Customers</h2>
-              <p className="text-xs text-gurulink-textSecondary">
-                All signups from the shared GuruLink backend (signups table).
-              </p>
+              <h2 className="text-lg font-bold text-gurulink-primary">Customers</h2>
             </div>
-            <div className="flex items-center gap-3 text-xs text-gurulink-textSecondary">
+            <div className="flex items-center gap-3 text-sm text-gurulink-textSecondary">
               <div className="hidden sm:flex items-center gap-2">
                 <span>Total:</span>
                 <span className="font-semibold text-gurulink-accent">{filteredCustomers.length}</span>
@@ -240,7 +493,7 @@ export default function App() {
                     setPerPage(Number(e.target.value));
                     setPage(1);
                   }}
-                  className="rounded-md border border-gurulink-border bg-white px-1 py-0.5 text-[11px] text-gurulink-text focus:outline-none focus:ring-1 focus:ring-gurulink-accent"
+                  className="rounded-md border border-gurulink-border bg-white px-1 py-0.5 text-xs text-gurulink-text focus:outline-none focus:ring-1 focus:ring-gurulink-accent"
                 >
                   {[10, 20, 50].map((size) => (
                     <option key={size} value={size}>
@@ -252,10 +505,17 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <input
                   type="text"
+                  placeholder="Filter by UID"
+                  value={filterUid}
+                  onChange={(e) => setFilterUid(e.target.value)}
+                  className="hidden sm:block rounded-md border border-gurulink-border bg-white px-2 py-1 text-xs text-gurulink-text placeholder:text-gurulink-textMuted focus:outline-none focus:ring-1 focus:ring-gurulink-accent"
+                />
+                <input
+                  type="text"
                   placeholder="Filter by email or name"
                   value={filterText}
                   onChange={(e) => setFilterText(e.target.value)}
-                  className="hidden sm:block rounded-md border border-gurulink-border bg-white px-2 py-1 text-[11px] text-gurulink-text placeholder:text-gurulink-textMuted focus:outline-none focus:ring-1 focus:ring-gurulink-accent"
+                  className="hidden sm:block rounded-md border border-gurulink-border bg-white px-2 py-1 text-xs text-gurulink-text placeholder:text-gurulink-textMuted focus:outline-none focus:ring-1 focus:ring-gurulink-accent"
                 />
                 <label className="inline-flex items-center gap-1 cursor-pointer">
                   <input
@@ -271,9 +531,10 @@ export default function App() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gurulink-border text-xs">
+            <table className="min-w-full divide-y divide-gurulink-border text-sm">
               <thead className="bg-gurulink-bgSoft">
                 <tr>
+                  <th className="px-3 py-2 text-left font-semibold text-gurulink-primary">UID</th>
                   <th className="px-3 py-2 text-left font-semibold text-gurulink-primary">Email</th>
                   <th className="px-3 py-2 text-left font-semibold text-gurulink-primary">Name</th>
                   <th className="px-3 py-2 text-left font-semibold text-gurulink-primary">Status</th>
@@ -286,13 +547,13 @@ export default function App() {
               <tbody className="divide-y divide-gurulink-border bg-gurulink-bg">
                 {loading && filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-gurulink-textSecondary">
+                    <td colSpan={6} className="px-3 py-6 text-center text-gurulink-textSecondary">
                       Loading customers…
                     </td>
                   </tr>
                 ) : filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-gurulink-textMuted">
+                    <td colSpan={6} className="px-3 py-6 text-center text-gurulink-textMuted">
                       No customers found yet.
                     </td>
                   </tr>
@@ -306,6 +567,9 @@ export default function App() {
                       onClick={() => loadDetail(c.email)}
                     >
                       <td className="px-3 py-2 align-top">
+                        <div className="font-medium text-gurulink-primary">{c.id || '—'}</div>
+                      </td>
+                      <td className="px-3 py-2 align-top">
                         <div className="font-medium text-gurulink-primary">{c.email}</div>
                       </td>
                       <td className="px-3 py-2 align-top text-gurulink-text">
@@ -315,7 +579,7 @@ export default function App() {
                         <div className="flex flex-col gap-1">
                           <StatusBadge active={c.is_active !== false} />
                           {c.is_test && (
-                            <span className="inline-flex items-center rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-700 border border-purple-200">
+                            <span className="inline-flex items-center rounded-full bg-purple-50 px-2 py-0.5 text-xs font-semibold text-purple-700 border border-purple-200">
                               TEST CUSTOMER
                             </span>
                           )}
@@ -336,27 +600,48 @@ export default function App() {
                         )}
                       </td>
                       <td className="px-3 py-2 align-top">
-                        <div className="flex justify-end gap-2">
-                          <ActionButton
-                            variant="secondary"
-                            onClick={() => handleCancelSubscription(c.email)}
-                            disabled={
-                              workingEmail === c.email ||
-                              cancelledEmails.includes(c.email)
-                            }
-                          >
-                            {cancelledEmails.includes(c.email)
-                              ? 'Cancellation Scheduled'
-                              : 'Cancel Subscription'}
-                          </ActionButton>
-                          <ActionButton
-                            variant="danger"
-                            onClick={() => handleDeactivate(c.email)}
-                            disabled={workingEmail === c.email || c.is_active === false}
-                          >
-                            Deactivate
-                          </ActionButton>
-                        </div>
+                        {canPerformActions ? (
+                          <div className="flex justify-end gap-2">
+                            {cancelledEmails.includes(c.email) ? (
+                              <ActionButton
+                                variant="primary"
+                                onClick={() => handleRestoreSubscription(c.email)}
+                                disabled={workingEmail === c.email}
+                              >
+                                Reactivate Subscription
+                              </ActionButton>
+                            ) : (
+                              <ActionButton
+                                variant="secondary"
+                                onClick={() => handleCancelSubscription(c.email)}
+                                disabled={workingEmail === c.email}
+                              >
+                                Cancel Subscription
+                              </ActionButton>
+                            )}
+                            {c.is_active === false ? (
+                              <ActionButton
+                                variant="primary"
+                                onClick={() => handleActivate(c.email)}
+                                disabled={workingEmail === c.email}
+                              >
+                                Activate
+                              </ActionButton>
+                            ) : (
+                              <ActionButton
+                                variant="danger"
+                                onClick={() => handleDeactivate(c.email)}
+                                disabled={workingEmail === c.email}
+                              >
+                                Deactivate
+                              </ActionButton>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-right text-sm text-gurulink-textMuted italic">
+                            View only
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -367,7 +652,7 @@ export default function App() {
 
           {/* Pagination controls */}
           {filteredCustomers.length > perPage && (
-            <div className="flex items-center justify-between border-t border-gurulink-border px-4 py-3 text-xs text-gurulink-textSecondary">
+            <div className="flex items-center justify-between border-t border-gurulink-border px-4 py-3 text-sm text-gurulink-textSecondary">
               <div>
                 Showing{' '}
                 <span className="font-semibold text-gurulink-primary">
@@ -385,17 +670,17 @@ export default function App() {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  className="rounded-md border border-gurulink-border px-2 py-1 text-xs font-semibold text-gurulink-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="rounded-md border border-gurulink-border px-2 py-1 text-sm font-semibold text-gurulink-primary disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={() => setPage(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
                 >
                   Previous
                 </button>
-                <div className="text-gurulink-primary text-xs font-semibold">
+                <div className="text-gurulink-primary text-sm font-semibold">
                   Page {currentPage} / {totalPages}
                 </div>
                 <button
-                  className="rounded-md border border-gurulink-border px-2 py-1 text-xs font-semibold text-gurulink-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="rounded-md border border-gurulink-border px-2 py-1 text-sm font-semibold text-gurulink-primary disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
                 >
@@ -405,147 +690,248 @@ export default function App() {
             </div>
           )}
         </section>
+          </>
+        )}
       </main>
+      {showNotifications && (
+        <Notifications
+          onClose={() => {
+            setShowNotifications(false);
+            refreshNotificationCount();
+          }}
+        />
+      )}
       {showDetail && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-3xl rounded-2xl bg-white shadow-2xl p-5 sm:p-7 text-xs text-gurulink-text relative">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4 py-6">
+          <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl p-6 sm:p-8 text-sm text-gurulink-text relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => {
                 setSelectedEmail('');
                 setDetail(null);
               }}
-              className="absolute right-3 top-3 text-gurulink-textMuted hover:text-gurulink-text"
+              className="absolute right-4 top-4 text-2xl text-gurulink-textMuted hover:text-gurulink-text transition-colors"
+              style={{ fontSize: '24px', lineHeight: '1' }}
             >
               ✕
             </button>
-            <h3 className="text-sm font-bold text-gurulink-primary mb-2">Customer Detail</h3>
-            {detailLoading && <p className="text-gurulink-textSecondary">Loading…</p>}
+            <h3 className="text-xl font-bold text-gurulink-primary mb-4">Customer Detail</h3>
+            {detailLoading && (
+              <p className="text-base text-gurulink-textSecondary">Loading…</p>
+            )}
             {!detailLoading && !detail && (
-              <p className="text-gurulink-textMuted">Unable to load customer details.</p>
+              <p className="text-base text-gurulink-textMuted">Unable to load customer details.</p>
             )}
             {!detailLoading && detail && (
-              <div className="space-y-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="space-y-1">
-                    <div className="font-semibold text-gurulink-primary">
-                      {detail.customer?.email}
-                    </div>
-                    {detail.customer?.name && (
-                      <div className="text-gurulink-textSecondary">
-                        Name: <span className="font-medium">{detail.customer.name}</span>
+              <div className="space-y-5">
+                {/* Customer Info Section */}
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="space-y-2 flex-1">
+                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        UID
                       </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <StatusBadge active={detail.customer?.is_active !== false} />
-                    {detail.customer?.is_test && (
-                      <span className="inline-flex items-center rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-700 border border-purple-200">
-                        TEST CUSTOMER
-                      </span>
-                    )}
+                      <div className="text-base font-semibold text-gurulink-primary">
+                        {detail.customer?.id || '—'}
+                      </div>
+                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-3">
+                        Email
+                      </div>
+                      <div className="text-base font-semibold text-gurulink-primary">
+                        {detail.customer?.email}
+                      </div>
+                      {detail.customer?.name && (
+                        <>
+                          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-3">
+                            Name
+                          </div>
+                          <div className="text-base text-gurulink-textSecondary">
+                            {detail.customer.name}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <StatusBadge active={detail.customer?.is_active !== false} />
+                      {detail.customer?.is_test && (
+                        <span className="inline-flex items-center rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-700 border border-purple-200">
+                          TEST CUSTOMER
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <div className="border-t border-gurulink-border pt-2 space-y-1">
-                  <div className="text-[11px] font-semibold text-gurulink-primary">
+                {/* Subscription Section */}
+                <div className="border-t border-gurulink-border pt-4 space-y-3">
+                  <div className="text-base font-bold text-gurulink-primary">
                     Subscription
                   </div>
                   {!detail.subscription?.hasSubscription ? (
-                    <div className="text-gurulink-textMuted">No subscription found.</div>
+                    <div className="text-base text-gurulink-textMuted">No subscription found.</div>
                   ) : (
-                    <>
-                      <div className="text-gurulink-textSecondary">
-                        Status:{' '}
-                        <span className="font-medium">
-                          {detail.subscription.subscription?.status}
-                        </span>
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                            Status
+                          </div>
+                          <div className="text-base text-gurulink-textSecondary">
+                            <span className="font-semibold capitalize">
+                              {detail.subscription.subscription?.status}
+                            </span>
+                          </div>
+                        </div>
+                        {detail.subscription.paymentMethod?.card && (
+                          <div>
+                            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                              Payment Method
+                            </div>
+                            <div className="text-base text-gurulink-textSecondary">
+                              <span className="font-semibold">
+                                {detail.subscription.paymentMethod.card.brand.toUpperCase()} ••••
+                                {detail.subscription.paymentMethod.card.last4}
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="text-gurulink-textSecondary">
-                        Current period:{' '}
-                        {detail.subscription.subscription?.currentPeriodStart
-                          ? new Date(
-                              detail.subscription.subscription.currentPeriodStart
-                            ).toLocaleDateString()
-                          : '—'}{' '}
-                        →{' '}
-                        {detail.subscription.subscription?.currentPeriodEnd
-                          ? new Date(
-                              detail.subscription.subscription.currentPeriodEnd
-                            ).toLocaleDateString()
-                          : '—'}
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                          Current Period
+                        </div>
+                        <div className="text-base text-gurulink-textSecondary">
+                          {detail.subscription.subscription?.currentPeriodStart
+                            ? new Date(
+                                detail.subscription.subscription.currentPeriodStart
+                              ).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric'
+                              })
+                            : '—'}{' '}
+                          →{' '}
+                          {detail.subscription.subscription?.currentPeriodEnd
+                            ? new Date(
+                                detail.subscription.subscription.currentPeriodEnd
+                              ).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric'
+                              })
+                            : '—'}
+                        </div>
                       </div>
-                      <div className="text-gurulink-textSecondary">
-                        Cancel at period end:{' '}
-                        <span className="font-medium">
-                          {detail.subscription.subscription?.cancelAtPeriodEnd ? 'Yes' : 'No'}
-                        </span>
-                      </div>
-                      {detail.subscription.paymentMethod?.card && (
-                        <div className="text-gurulink-textSecondary">
-                          Card:{' '}
-                          <span className="font-medium">
-                            {detail.subscription.paymentMethod.card.brand.toUpperCase()} ••••
-                            {detail.subscription.paymentMethod.card.last4}
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                          Cancel at Period End
+                        </div>
+                        <div className="text-base text-gurulink-textSecondary">
+                          <span className="font-semibold">
+                            {detail.subscription.subscription?.cancelAtPeriodEnd ? 'Yes' : 'No'}
                           </span>
                         </div>
-                      )}
-                    </>
+                      </div>
+                    </div>
                   )}
                 </div>
 
-                <div className="border-t border-gurulink-border pt-2 space-y-1">
-                  <div className="text-[11px] font-semibold text-gurulink-primary">
-                    Recent invoices
+                {/* Recent Invoices Section */}
+                <div className="border-t border-gurulink-border pt-4 space-y-3">
+                  <div className="text-base font-bold text-gurulink-primary">
+                    Recent Invoices
                   </div>
-                    {detail.subscription?.invoices?.length ? (
-                      <ul className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                  {detail.subscription?.invoices?.length ? (
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <ul className="space-y-3 max-h-60 overflow-y-auto pr-2">
                         {detail.subscription.invoices.map((inv) => (
-                          <li key={inv.id} className="text-gurulink-textSecondary">
-                            <span className="font-medium">
-                              {inv.amount.toFixed(2)} {inv.currency.toUpperCase()}
-                            </span>{' '}
-                            • {inv.status}{' '}
-                            {detail.customer?.is_test && (
-                              <span className="ml-1 inline-flex items-center rounded-full bg-purple-50 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 border border-purple-200">
-                                TEST PAYMENT
+                          <li
+                            key={inv.id}
+                            className="flex items-center justify-between gap-3 pb-3 border-b border-gray-200 last:border-0 last:pb-0"
+                          >
+                            <div className="flex-1">
+                              <div className="text-base font-semibold text-gurulink-primary">
+                                {inv.amount.toFixed(2)} {inv.currency.toUpperCase()}
+                              </div>
+                              <div className="text-sm text-gurulink-textMuted mt-1">
+                                {new Date(inv.created).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-semibold ${
+                                  inv.status === 'paid'
+                                    ? 'bg-green-50 text-green-700 border border-green-200'
+                                    : inv.status === 'open'
+                                    ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                                    : 'bg-gray-50 text-gray-700 border border-gray-200'
+                                }`}
+                              >
+                                {inv.status}
                               </span>
-                            )}
-                            <span className="ml-1 text-gurulink-textMuted">
-                              ({new Date(inv.created).toLocaleDateString()})
-                            </span>
+                              {detail.customer?.is_test && (
+                                <span className="inline-flex items-center rounded-full bg-purple-50 px-2 py-1 text-xs font-semibold text-purple-700 border border-purple-200">
+                                  TEST
+                                </span>
+                              )}
+                            </div>
                           </li>
                         ))}
                       </ul>
-                    ) : (
-                      <p className="text-gurulink-textMuted">No invoices found.</p>
-                    )}
+                    </div>
+                  ) : (
+                    <p className="text-base text-gurulink-textMuted">No invoices found.</p>
+                  )}
                 </div>
 
                 {/* Popup actions footer */}
-                <div className="pt-3 flex justify-end gap-2">
-                  <ActionButton
-                    variant="secondary"
-                    onClick={() => handleCancelSubscription(detail.customer?.email)}
-                    disabled={
-                      workingEmail === detail.customer?.email ||
-                      cancelledEmails.includes(detail.customer?.email)
-                    }
-                  >
-                    {cancelledEmails.includes(detail.customer?.email)
-                      ? 'Cancellation Scheduled'
-                      : 'Cancel Subscription'}
-                  </ActionButton>
-                  <ActionButton
-                    variant="danger"
-                    onClick={() => handleDeactivate(detail.customer?.email)}
-                    disabled={
-                      workingEmail === detail.customer?.email ||
-                      detail.customer?.is_active === false
-                    }
-                  >
-                    Deactivate
-                  </ActionButton>
-                </div>
+                {canPerformActions ? (
+                  <div className="pt-4 border-t border-gurulink-border flex justify-end gap-3">
+                    {cancelledEmails.includes(detail.customer?.email) ? (
+                      <ActionButton
+                        variant="primary"
+                        onClick={() => handleRestoreSubscription(detail.customer?.email)}
+                        disabled={workingEmail === detail.customer?.email}
+                      >
+                        Reactivate Subscription
+                      </ActionButton>
+                    ) : (
+                      <ActionButton
+                        variant="secondary"
+                        onClick={() => handleCancelSubscription(detail.customer?.email)}
+                        disabled={workingEmail === detail.customer?.email}
+                      >
+                        Cancel Subscription
+                      </ActionButton>
+                    )}
+                    {detail.customer?.is_active === false ? (
+                      <ActionButton
+                        variant="primary"
+                        onClick={() => handleActivate(detail.customer?.email)}
+                        disabled={workingEmail === detail.customer?.email}
+                      >
+                        Activate
+                      </ActionButton>
+                    ) : (
+                      <ActionButton
+                        variant="danger"
+                        onClick={() => handleDeactivate(detail.customer?.email)}
+                        disabled={workingEmail === detail.customer?.email}
+                      >
+                        Deactivate
+                      </ActionButton>
+                    )}
+                  </div>
+                ) : (
+                  <div className="pt-4 border-t border-gurulink-border">
+                    <p className="text-sm text-center text-gurulink-textMuted italic">
+                      View only - Actions are not available for viewers
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
