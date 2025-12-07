@@ -145,6 +145,33 @@ export async function createAdminUser(username, password, role = 'admin') {
   return handle(res);
 }
 
+export async function deleteAdminUser(userId) {
+  const res = await fetch(`${API_BASE}/api/admin/auth/users/${userId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+    credentials: 'include'
+  });
+  return handle(res);
+}
+
+export async function deactivateAdminUser(userId) {
+  const res = await fetch(`${API_BASE}/api/admin/auth/users/${userId}/deactivate`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    credentials: 'include'
+  });
+  return handle(res);
+}
+
+export async function activateAdminUser(userId) {
+  const res = await fetch(`${API_BASE}/api/admin/auth/users/${userId}/activate`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    credentials: 'include'
+  });
+  return handle(res);
+}
+
 export async function getNotifications({ limit = 50, unreadOnly = false } = {}) {
   const params = new URLSearchParams();
   if (limit) params.append('limit', limit);

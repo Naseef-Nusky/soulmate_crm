@@ -27,9 +27,9 @@ export default function Login({ onLogin }) {
       console.error('Login error:', err);
       const errorMessage = err.message || 'Login failed';
       if (errorMessage.includes('Failed to authenticate') || errorMessage.includes('Database not available')) {
-        setError('Database connection error. Please ensure the backend is running and the admin user exists. Run: node scripts/createAdmin.js admin admin123 admin');
+        setError('Database connection error. Please ensure the backend is running and the admin user exists.');
       } else if (errorMessage.includes('Invalid credentials')) {
-        setError('Invalid username or password. Make sure you have created an admin user first.');
+        setError('Invalid username or password. Please check your credentials and try again.');
       } else if (errorMessage.includes('fetch')) {
         setError('Cannot connect to backend. Please ensure the backend server is running.');
       } else {
@@ -72,14 +72,6 @@ export default function Login({ onLogin }) {
             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
               <div className="font-semibold mb-1">Login Failed</div>
               <div>{error}</div>
-              {error.includes('admin user') && (
-                <div className="mt-2 pt-2 border-t border-red-200">
-                  <div className="text-xs text-red-700 font-mono bg-red-100 p-2 rounded mt-1">
-                    cd soulmate_backend<br />
-                    node scripts/createAdmin.js admin admin123 admin
-                  </div>
-                </div>
-              )}
             </div>
           )}
 

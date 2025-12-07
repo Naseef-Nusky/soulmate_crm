@@ -79,9 +79,12 @@ export default function App() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
-  // Check if user is viewer (read-only)
+  // Check user roles
   const isViewer = admin?.role === 'viewer';
-  const canPerformActions = !isViewer; // Only non-viewers can perform actions
+  const isSuperAdmin = admin?.role === 'super_admin' || !admin?.role; // Default role is super_admin
+  const isAdmin = admin?.role === 'admin';
+  // Super admin and admin can perform customer actions (cancel subscription, deactivate, activate)
+  const canPerformCustomerActions = isSuperAdmin || isAdmin;
 
   // Check authentication on mount
   useEffect(() => {
@@ -414,7 +417,7 @@ export default function App() {
                 </span>
               )}
             </button>
-            <ActionButton variant="secondary" onClick={load} disabled={loading || isViewer}>
+            <ActionButton variant="secondary" onClick={load} disabled={loading}>
               {loading ? 'Refreshing…' : 'Refresh'}
             </ActionButton>
             <ActionButton variant="danger" onClick={handleLogout}>
@@ -447,7 +450,7 @@ export default function App() {
           >
             Profile
           </button>
-          {(admin?.role === 'admin' || !admin?.role) && (
+          {isSuperAdmin && (
             <button
               onClick={() => setActiveTab('create-user')}
               className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 ${
@@ -465,6 +468,7 @@ export default function App() {
         {activeTab === 'profile' && <Profile admin={admin} />}
         {activeTab === 'create-user' && (
           <CreateUser
+            currentUserRole={admin?.role}
             onUserCreated={() => {
               // Optionally refresh profile if needed
             }}
@@ -610,7 +614,7 @@ export default function App() {
                         )}
                       </td>
                       <td className="px-3 py-2 align-top">
-                        {canPerformActions ? (
+                        {canPerformCustomerActions ? (
                           <div className="flex justify-end gap-2">
                             {cancelledEmails.includes(c.email) ? (
                               <ActionButton
@@ -1007,7 +1011,7 @@ export default function App() {
                 </div>
 
                 {/* Popup actions footer */}
-                {canPerformActions ? (
+                {canPerformCustomerActions ? (
                   <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-3 border border-gray-200">
                     <div className="flex items-center justify-end gap-2">
                       {cancelledEmails.includes(detail.customer?.email) ? (

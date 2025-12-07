@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { getAdminUser } from './auth.js';
-import { listAdminUsers } from './api.js';
+import { listAdminUsers, deleteAdminUser, deactivateAdminUser, activateAdminUser } from './api.js';
 
 export default function Profile({ admin }) {
   const [adminUsers, setAdminUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [deletingUserId, setDeletingUserId] = useState(null);
+  const [workingUserId, setWorkingUserId] = useState(null);
 
   useEffect(() => {
     loadUsers();
@@ -23,6 +25,70 @@ export default function Profile({ admin }) {
       setError(err.message || 'Failed to load admin users');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId, username) => {
+    if (!window.confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingUserId(userId);
+    setError('');
+    try {
+      const data = await deleteAdminUser(userId);
+      if (data.ok) {
+        // Remove user from list
+        setAdminUsers((prev) => prev.filter((u) => u.id !== userId));
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to delete user');
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
+
+  const handleDeactivateUser = async (userId, username) => {
+    if (!window.confirm(`Are you sure you want to deactivate user "${username}"? They will not be able to log in.`)) {
+      return;
+    }
+
+    setWorkingUserId(userId);
+    setError('');
+    try {
+      const data = await deactivateAdminUser(userId);
+      if (data.ok) {
+        // Update user status in list
+        setAdminUsers((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, is_active: false } : u))
+        );
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to deactivate user');
+    } finally {
+      setWorkingUserId(null);
+    }
+  };
+
+  const handleActivateUser = async (userId, username) => {
+    if (!window.confirm(`Are you sure you want to activate user "${username}"? They will be able to log in again.`)) {
+      return;
+    }
+
+    setWorkingUserId(userId);
+    setError('');
+    try {
+      const data = await activateAdminUser(userId);
+      if (data.ok) {
+        // Update user status in list
+        setAdminUsers((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, is_active: true } : u))
+        );
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to activate user');
+    } finally {
+      setWorkingUserId(null);
     }
   };
 
@@ -77,7 +143,7 @@ export default function Profile({ admin }) {
         </div>
       </div>
 
-      {(admin?.role === 'admin' || !admin?.role) && (
+      {(admin?.role === 'super_admin' || !admin?.role) && (
         <div className="rounded-lg border border-gurulink-border bg-gurulink-bg shadow-lg">
           <div className="border-b border-gurulink-border px-6 py-4 bg-gurulink-bgSoft">
             <div className="flex items-center justify-between">
@@ -118,12 +184,15 @@ export default function Profile({ admin }) {
                     <th className="px-4 py-3 text-left font-semibold text-gurulink-primary">
                       Created
                     </th>
+                    <th className="px-4 py-3 text-left font-semibold text-gurulink-primary">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gurulink-border bg-gurulink-bg">
                   {adminUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-6 text-center text-gurulink-textMuted">
+                      <td colSpan={6} className="px-4 py-6 text-center text-gurulink-textMuted">
                         No admin users found
                       </td>
                     </tr>
@@ -166,6 +235,44 @@ export default function Profile({ admin }) {
                           {user.created_at
                             ? new Date(user.created_at).toLocaleDateString()
                             : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            {user.id !== admin?.id && user.role !== 'super_admin' && (
+                              <>
+                                {user.is_active !== false ? (
+                                  <button
+                                    onClick={() => handleDeactivateUser(user.id, user.username)}
+                                    disabled={workingUserId === user.id}
+                                    className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed bg-yellow-600 text-white hover:bg-yellow-500"
+                                  >
+                                    {workingUserId === user.id ? 'Deactivating...' : 'Deactivate'}
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleActivateUser(user.id, user.username)}
+                                    disabled={workingUserId === user.id}
+                                    className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed bg-green-600 text-white hover:bg-green-500"
+                                  >
+                                    {workingUserId === user.id ? 'Activating...' : 'Activate'}
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleDeleteUser(user.id, user.username)}
+                                  disabled={deletingUserId === user.id || workingUserId === user.id}
+                                  className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 text-white hover:bg-red-500"
+                                >
+                                  {deletingUserId === user.id ? 'Deleting...' : 'Delete'}
+                                </button>
+                              </>
+                            )}
+                            {user.id === admin?.id && (
+                              <span className="text-xs text-gurulink-textMuted italic">Current user</span>
+                            )}
+                            {user.role === 'super_admin' && (
+                              <span className="text-xs text-gurulink-textMuted italic">Protected - Cannot be removed or deactivated</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))

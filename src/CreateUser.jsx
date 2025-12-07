@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createAdminUser } from './api.js';
 
-export default function CreateUser({ onUserCreated }) {
+export default function CreateUser({ currentUserRole, onUserCreated }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -225,6 +225,9 @@ export default function CreateUser({ onUserCreated }) {
               <option value="admin">Admin</option>
               <option value="viewer">Viewer</option>
             </select>
+            <p className="mt-1 text-xs text-gurulink-textMuted">
+              Note: Super admin is a system-only role and cannot be created through the interface
+            </p>
           </div>
 
           <div className="pt-2">
