@@ -537,6 +537,7 @@ export default function App() {
                   <th className="px-3 py-2 text-left font-semibold text-gurulink-primary">UID</th>
                   <th className="px-3 py-2 text-left font-semibold text-gurulink-primary">Email</th>
                   <th className="px-3 py-2 text-left font-semibold text-gurulink-primary">Name</th>
+                  <th className="px-3 py-2 text-left font-semibold text-gurulink-primary">Date of Birth</th>
                   <th className="px-3 py-2 text-left font-semibold text-gurulink-primary">Status</th>
                   <th className="px-3 py-2 text-left font-semibold text-gurulink-primary">
                     Created / Deactivated
@@ -547,13 +548,13 @@ export default function App() {
               <tbody className="divide-y divide-gurulink-border bg-gurulink-bg">
                 {loading && filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-gurulink-textSecondary">
+                    <td colSpan={7} className="px-3 py-6 text-center text-gurulink-textSecondary">
                       Loading customers…
                     </td>
                   </tr>
                 ) : filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-gurulink-textMuted">
+                    <td colSpan={7} className="px-3 py-6 text-center text-gurulink-textMuted">
                       No customers found yet.
                     </td>
                   </tr>
@@ -574,6 +575,15 @@ export default function App() {
                       </td>
                       <td className="px-3 py-2 align-top text-gurulink-text">
                         {c.name || <span className="text-gurulink-textMuted">—</span>}
+                      </td>
+                      <td className="px-3 py-2 align-top text-gurulink-textSecondary">
+                        {c.birth_date
+                          ? new Date(c.birth_date).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })
+                          : <span className="text-gurulink-textMuted">—</span>}
                       </td>
                       <td className="px-3 py-2 align-top">
                         <div className="flex flex-col gap-1">
@@ -702,19 +712,19 @@ export default function App() {
         />
       )}
       {showDetail && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4 py-6">
-          <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl p-6 sm:p-8 text-sm text-gurulink-text relative max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4 py-4">
+          <div className="w-full max-w-6xl rounded-xl bg-white shadow-2xl p-4 sm:p-5 text-sm text-gurulink-text relative">
             <button
               onClick={() => {
                 setSelectedEmail('');
                 setDetail(null);
               }}
-              className="absolute right-4 top-4 text-2xl text-gurulink-textMuted hover:text-gurulink-text transition-colors"
-              style={{ fontSize: '24px', lineHeight: '1' }}
+              className="absolute right-3 top-3 text-xl text-gurulink-textMuted hover:text-gurulink-text transition-colors"
+              style={{ fontSize: '20px', lineHeight: '1' }}
             >
               ✕
             </button>
-            <h3 className="text-xl font-bold text-gurulink-primary mb-4">Customer Detail</h3>
+            <h3 className="text-lg font-bold text-gurulink-primary mb-3">Customer Detail</h3>
             {detailLoading && (
               <p className="text-base text-gurulink-textSecondary">Loading…</p>
             )}
@@ -722,212 +732,323 @@ export default function App() {
               <p className="text-base text-gurulink-textMuted">Unable to load customer details.</p>
             )}
             {!detailLoading && detail && (
-              <div className="space-y-5">
+              <div className="space-y-3">
                 {/* Customer Info Section */}
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="space-y-2 flex-1">
-                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                        UID
-                      </div>
-                      <div className="text-base font-semibold text-gurulink-primary">
-                        {detail.customer?.id || '—'}
-                      </div>
-                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-3">
-                        Email
-                      </div>
-                      <div className="text-base font-semibold text-gurulink-primary">
-                        {detail.customer?.email}
-                      </div>
-                      {detail.customer?.name && (
-                        <>
-                          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-3">
-                            Name
-                          </div>
-                          <div className="text-base text-gurulink-textSecondary">
-                            {detail.customer.name}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    <div className="flex items-start gap-3">
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-3 border border-gray-200">
+                  <div className="flex items-start justify-between mb-2">
+                    <h4 className="text-base font-bold text-gurulink-primary">Customer Information</h4>
+                    <div className="flex items-center gap-2">
                       <StatusBadge active={detail.customer?.is_active !== false} />
                       {detail.customer?.is_test && (
-                        <span className="inline-flex items-center rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-700 border border-purple-200">
-                          TEST CUSTOMER
+                        <span className="inline-flex items-center rounded-full bg-purple-50 px-2 py-0.5 text-xs font-semibold text-purple-700 border border-purple-200">
+                          TEST
                         </span>
                       )}
                     </div>
                   </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                    <div>
+                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
+                        User ID
+                      </div>
+                      <div className="text-sm font-semibold text-gurulink-primary">
+                        {detail.customer?.id || '—'}
+                      </div>
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
+                        Email
+                      </div>
+                      <div className="text-sm font-semibold text-gurulink-primary break-all">
+                        {detail.customer?.email}
+                      </div>
+                    </div>
+                    {detail.customer?.name && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
+                          Name
+                        </div>
+                        <div className="text-sm text-gurulink-textSecondary">
+                          {detail.customer.name}
+                        </div>
+                      </div>
+                    )}
+                    {detail.customer?.birth_date && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
+                          Date of Birth
+                        </div>
+                        <div className="text-sm text-gurulink-textSecondary">
+                          {new Date(detail.customer.birth_date).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {detail.customer?.gender && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
+                          Gender
+                        </div>
+                        <div className="text-sm text-gurulink-textSecondary capitalize">
+                          {detail.customer.gender}
+                        </div>
+                      </div>
+                    )}
+                    {detail.customer?.place_of_birth && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
+                          Place of Birth
+                        </div>
+                        <div className="text-sm text-gurulink-textSecondary">
+                          {detail.customer.place_of_birth}
+                        </div>
+                      </div>
+                    )}
+                    {detail.customer?.created_at && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
+                          Account Created
+                        </div>
+                        <div className="text-sm text-gurulink-textSecondary">
+                          {new Date(detail.customer.created_at).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {detail.customer?.deactivated_at && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
+                          Deactivated At
+                        </div>
+                        <div className="text-sm text-red-600">
+                          {new Date(detail.customer.deactivated_at).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Subscription Section */}
-                <div className="border-t border-gurulink-border pt-4 space-y-3">
-                  <div className="text-base font-bold text-gurulink-primary">
-                    Subscription
-                  </div>
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-200">
+                  <h4 className="text-base font-bold text-gurulink-primary mb-2">Subscription Details</h4>
                   {!detail.subscription?.hasSubscription ? (
-                    <div className="text-base text-gurulink-textMuted">No subscription found.</div>
+                    <div className="text-sm text-gurulink-textMuted bg-white rounded-lg p-2 border border-gray-200">
+                      No active subscription found.
+                    </div>
                   ) : (
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="bg-white rounded-lg p-3 border border-gray-200 space-y-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div>
-                          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
                             Status
                           </div>
-                          <div className="text-base text-gurulink-textSecondary">
-                            <span className="font-semibold capitalize">
-                              {detail.subscription.subscription?.status}
+                          <div>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                              detail.subscription.subscription?.status === 'active'
+                                ? 'bg-green-50 text-green-700 border border-green-200'
+                                : detail.subscription.subscription?.status === 'canceled'
+                                ? 'bg-red-50 text-red-700 border border-red-200'
+                                : 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                            }`}>
+                              {detail.subscription.subscription?.status?.toUpperCase() || '—'}
                             </span>
                           </div>
                         </div>
                         {detail.subscription.paymentMethod?.card && (
                           <div>
-                            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
                               Payment Method
                             </div>
-                            <div className="text-base text-gurulink-textSecondary">
-                              <span className="font-semibold">
-                                {detail.subscription.paymentMethod.card.brand.toUpperCase()} ••••
-                                {detail.subscription.paymentMethod.card.last4}
-                              </span>
+                            <div className="text-sm font-semibold text-gurulink-textSecondary">
+                              {detail.subscription.paymentMethod.card.brand.toUpperCase()} •••• {detail.subscription.paymentMethod.card.last4}
+                            </div>
+                            {detail.subscription.paymentMethod.card.expMonth && detail.subscription.paymentMethod.card.expYear && (
+                              <div className="text-xs text-gurulink-textMuted">
+                                Exp {detail.subscription.paymentMethod.card.expMonth}/{detail.subscription.paymentMethod.card.expYear}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div>
+                          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
+                            Period Start
+                          </div>
+                          <div className="text-sm text-gurulink-textSecondary">
+                            {detail.subscription.subscription?.currentPeriodStart
+                              ? new Date(
+                                  detail.subscription.subscription.currentPeriodStart
+                                ).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })
+                              : '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
+                            Period End
+                          </div>
+                          <div className="text-sm text-gurulink-textSecondary">
+                            {detail.subscription.subscription?.currentPeriodEnd
+                              ? new Date(
+                                  detail.subscription.subscription.currentPeriodEnd
+                                ).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })
+                              : '—'}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-200">
+                        <div>
+                          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
+                            Cancellation
+                          </div>
+                          <div>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                              detail.subscription.subscription?.cancelAtPeriodEnd
+                                ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                                : 'bg-green-50 text-green-700 border border-green-200'
+                            }`}>
+                              {detail.subscription.subscription?.cancelAtPeriodEnd ? 'Scheduled' : 'Active'}
+                            </span>
+                          </div>
+                        </div>
+                        {detail.subscription.subscription?.items && detail.subscription.subscription.items.length > 0 && (
+                          <div>
+                            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
+                              Plan
+                            </div>
+                            <div className="text-sm text-gurulink-textSecondary">
+                              {detail.subscription.subscription.items.map((item, idx) => (
+                                <div key={idx}>
+                                  {item.intervalCount} {item.interval} - {item.amount} {item.currency.toUpperCase()}
+                                </div>
+                              ))}
                             </div>
                           </div>
                         )}
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                          Current Period
-                        </div>
-                        <div className="text-base text-gurulink-textSecondary">
-                          {detail.subscription.subscription?.currentPeriodStart
-                            ? new Date(
-                                detail.subscription.subscription.currentPeriodStart
-                              ).toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric'
-                              })
-                            : '—'}{' '}
-                          →{' '}
-                          {detail.subscription.subscription?.currentPeriodEnd
-                            ? new Date(
-                                detail.subscription.subscription.currentPeriodEnd
-                              ).toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric'
-                              })
-                            : '—'}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                          Cancel at Period End
-                        </div>
-                        <div className="text-base text-gurulink-textSecondary">
-                          <span className="font-semibold">
-                            {detail.subscription.subscription?.cancelAtPeriodEnd ? 'Yes' : 'No'}
-                          </span>
-                        </div>
                       </div>
                     </div>
                   )}
                 </div>
 
                 {/* Recent Invoices Section */}
-                <div className="border-t border-gurulink-border pt-4 space-y-3">
-                  <div className="text-base font-bold text-gurulink-primary">
-                    Recent Invoices
-                  </div>
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3 border border-green-200">
+                  <h4 className="text-base font-bold text-gurulink-primary mb-2">Recent Invoices</h4>
                   {detail.subscription?.invoices?.length ? (
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <ul className="space-y-3 max-h-60 overflow-y-auto pr-2">
-                        {detail.subscription.invoices.map((inv) => (
-                          <li
-                            key={inv.id}
-                            className="flex items-center justify-between gap-3 pb-3 border-b border-gray-200 last:border-0 last:pb-0"
-                          >
-                            <div className="flex-1">
-                              <div className="text-base font-semibold text-gurulink-primary">
-                                {inv.amount.toFixed(2)} {inv.currency.toUpperCase()}
-                              </div>
-                              <div className="text-sm text-gurulink-textMuted mt-1">
+                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
+                            <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Amount</th>
+                            <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {detail.subscription.invoices.slice(0, 5).map((inv) => (
+                            <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-2 py-2 text-gurulink-textSecondary">
                                 {new Date(inv.created).toLocaleDateString('en-US', {
                                   month: 'short',
                                   day: 'numeric',
-                                  year: 'numeric'
+                                  year: '2-digit'
                                 })}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`px-2 py-1 rounded text-xs font-semibold ${
-                                  inv.status === 'paid'
-                                    ? 'bg-green-50 text-green-700 border border-green-200'
-                                    : inv.status === 'open'
-                                    ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
-                                    : 'bg-gray-50 text-gray-700 border border-gray-200'
-                                }`}
-                              >
-                                {inv.status}
-                              </span>
-                              {detail.customer?.is_test && (
-                                <span className="inline-flex items-center rounded-full bg-purple-50 px-2 py-1 text-xs font-semibold text-purple-700 border border-purple-200">
-                                  TEST
+                              </td>
+                              <td className="px-2 py-2">
+                                <span className="font-semibold text-gurulink-primary">
+                                  {inv.amount.toFixed(2)} {inv.currency.toUpperCase()}
                                 </span>
-                              )}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
+                              </td>
+                              <td className="px-2 py-2">
+                                <span
+                                  className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-semibold ${
+                                    inv.status === 'paid'
+                                      ? 'bg-green-50 text-green-700 border border-green-200'
+                                      : inv.status === 'open'
+                                      ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                                      : inv.status === 'draft'
+                                      ? 'bg-gray-50 text-gray-700 border border-gray-200'
+                                      : 'bg-red-50 text-red-700 border border-red-200'
+                                  }`}
+                                >
+                                  {inv.status.toUpperCase()}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {detail.subscription.invoices.length > 5 && (
+                        <div className="px-2 py-1.5 text-xs text-gurulink-textMuted text-center bg-gray-50 border-t border-gray-200">
+                          +{detail.subscription.invoices.length - 5} more invoices
+                        </div>
+                      )}
                     </div>
                   ) : (
-                    <p className="text-base text-gurulink-textMuted">No invoices found.</p>
+                    <div className="bg-white rounded-lg p-2 border border-gray-200 text-sm text-gurulink-textMuted">
+                      No invoices found.
+                    </div>
                   )}
                 </div>
 
                 {/* Popup actions footer */}
                 {canPerformActions ? (
-                  <div className="pt-4 border-t border-gurulink-border flex justify-end gap-3">
-                    {cancelledEmails.includes(detail.customer?.email) ? (
-                      <ActionButton
-                        variant="primary"
-                        onClick={() => handleRestoreSubscription(detail.customer?.email)}
-                        disabled={workingEmail === detail.customer?.email}
-                      >
-                        Reactivate Subscription
-                      </ActionButton>
-                    ) : (
-                      <ActionButton
-                        variant="secondary"
-                        onClick={() => handleCancelSubscription(detail.customer?.email)}
-                        disabled={workingEmail === detail.customer?.email}
-                      >
-                        Cancel Subscription
-                      </ActionButton>
-                    )}
-                    {detail.customer?.is_active === false ? (
-                      <ActionButton
-                        variant="primary"
-                        onClick={() => handleActivate(detail.customer?.email)}
-                        disabled={workingEmail === detail.customer?.email}
-                      >
-                        Activate
-                      </ActionButton>
-                    ) : (
-                      <ActionButton
-                        variant="danger"
-                        onClick={() => handleDeactivate(detail.customer?.email)}
-                        disabled={workingEmail === detail.customer?.email}
-                      >
-                        Deactivate
-                      </ActionButton>
-                    )}
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-3 border border-gray-200">
+                    <div className="flex items-center justify-end gap-2">
+                      {cancelledEmails.includes(detail.customer?.email) ? (
+                        <ActionButton
+                          variant="primary"
+                          onClick={() => handleRestoreSubscription(detail.customer?.email)}
+                          disabled={workingEmail === detail.customer?.email}
+                        >
+                          Reactivate Subscription
+                        </ActionButton>
+                      ) : (
+                        <ActionButton
+                          variant="secondary"
+                          onClick={() => handleCancelSubscription(detail.customer?.email)}
+                          disabled={workingEmail === detail.customer?.email}
+                        >
+                          Cancel Subscription
+                        </ActionButton>
+                      )}
+                      {detail.customer?.is_active === false ? (
+                        <ActionButton
+                          variant="primary"
+                          onClick={() => handleActivate(detail.customer?.email)}
+                          disabled={workingEmail === detail.customer?.email}
+                        >
+                          Activate
+                        </ActionButton>
+                      ) : (
+                        <ActionButton
+                          variant="danger"
+                          onClick={() => handleDeactivate(detail.customer?.email)}
+                          disabled={workingEmail === detail.customer?.email}
+                        >
+                          Deactivate
+                        </ActionButton>
+                      )}
+                    </div>
                   </div>
                 ) : (
-                  <div className="pt-4 border-t border-gurulink-border">
-                    <p className="text-sm text-center text-gurulink-textMuted italic">
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-3 border border-gray-200">
+                    <p className="text-xs text-center text-gurulink-textMuted italic">
                       View only - Actions are not available for viewers
                     </p>
                   </div>
