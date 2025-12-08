@@ -49,7 +49,11 @@ export default function Profile({ admin }) {
 
   // Get current user from the list (which has created_at) or fallback to admin object
   // Prefer the user from adminUsers list as it has complete data including created_at
+  // But use admin prop's created_at immediately if available
   const currentUser = adminUsers.find((u) => u.id === admin?.id) || admin;
+  
+  // Ensure created_at is available from admin prop if not in list yet
+  const accountCreated = currentUser?.created_at || admin?.created_at;
 
   return (
     <div className="space-y-6">
@@ -86,36 +90,36 @@ export default function Profile({ admin }) {
                 </span>
               </div>
             </div>
-            {!loading || currentUser?.created_at ? (
-              <div>
-                <label className="block text-sm font-semibold text-gurulink-textSecondary mb-1">
-                  Account Created
-                </label>
-                <div className="text-base text-gurulink-text bg-gurulink-bgSoft px-3 py-2 rounded border border-gurulink-border">
-                  {currentUser?.created_at ? (
-                    (() => {
-                      try {
-                        const date = new Date(currentUser.created_at);
-                        if (isNaN(date.getTime())) {
-                          return 'Invalid date';
-                        }
-                        return date.toLocaleString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        });
-                      } catch (e) {
+            <div>
+              <label className="block text-sm font-semibold text-gurulink-textSecondary mb-1">
+                Account Created
+              </label>
+              <div className="text-base text-gurulink-text bg-gurulink-bgSoft px-3 py-2 rounded border border-gurulink-border">
+                {accountCreated ? (
+                  (() => {
+                    try {
+                      const date = new Date(accountCreated);
+                      if (isNaN(date.getTime())) {
                         return 'Invalid date';
                       }
-                    })()
-                  ) : (
-                    '—'
-                  )}
-                </div>
+                      return date.toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      });
+                    } catch (e) {
+                      return 'Invalid date';
+                    }
+                  })()
+                ) : loading ? (
+                  <span className="text-gurulink-textMuted italic">Loading...</span>
+                ) : (
+                  '—'
+                )}
               </div>
-            ) : null}
+            </div>
           </div>
         </div>
       </div>
