@@ -57,13 +57,13 @@ export default function Login({ onLogin }) {
                 GuruLink<span style={{ color: '#D4A34B' }}> CRM</span>
               </div>
             </div>
-            <h1 className="text-2xl font-bold text-gurulink-primary">Admin Login</h1>
+            <h1 className="text-2xl font-bold text-gurulink-primary">Login</h1>
             <p className="text-sm text-gurulink-textSecondary mt-2">
               Sign in to access the CRM dashboard
             </p>
             <div className="mt-3 px-3 py-2 rounded-lg bg-gurulink-bgSoft border border-gurulink-border">
               <p className="text-xs text-gurulink-textSecondary">
-                <span className="font-semibold text-gurulink-primary">Default:</span> Username: <span className="font-mono">admin</span> | Password: <span className="font-mono">admin123</span>
+                <span className="font-semibold text-gurulink-primary">Default:</span> Username: <span className="font-mono">superadmin</span> | Password: <span className="font-mono">admin123</span>
               </p>
             </div>
           </div>

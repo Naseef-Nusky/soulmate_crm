@@ -383,7 +383,7 @@ export default function App() {
                 <span className="font-semibold text-gurulink-primary">{admin.username}</span>
                 {admin.role && (
                   <span className="px-2 py-0.5 rounded text-xs font-semibold bg-gurulink-accent/20 text-gurulink-accent border border-gurulink-accent/30">
-                    {admin.role}
+                    {admin.role === 'super_admin' ? 'Super Admin' : admin.role === 'admin' ? 'Admin' : admin.role === 'viewer' ? 'Viewer' : admin.role}
                   </span>
                 )}
               </div>

@@ -1,17 +1,16 @@
 import { useState, useEffect } from 'react';
 import { getAdminUser } from './auth.js';
-import { listAdminUsers, deleteAdminUser, deactivateAdminUser, activateAdminUser } from './api.js';
+import { listAdminUsers, deleteAdminUser } from './api.js';
 
 export default function Profile({ admin }) {
   const [adminUsers, setAdminUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deletingUserId, setDeletingUserId] = useState(null);
-  const [workingUserId, setWorkingUserId] = useState(null);
 
   useEffect(() => {
     loadUsers();
-  }, []);
+  }, []); // Load users on mount
 
   const loadUsers = async () => {
     setLoading(true);
@@ -48,50 +47,8 @@ export default function Profile({ admin }) {
     }
   };
 
-  const handleDeactivateUser = async (userId, username) => {
-    if (!window.confirm(`Are you sure you want to deactivate user "${username}"? They will not be able to log in.`)) {
-      return;
-    }
-
-    setWorkingUserId(userId);
-    setError('');
-    try {
-      const data = await deactivateAdminUser(userId);
-      if (data.ok) {
-        // Update user status in list
-        setAdminUsers((prev) =>
-          prev.map((u) => (u.id === userId ? { ...u, is_active: false } : u))
-        );
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to deactivate user');
-    } finally {
-      setWorkingUserId(null);
-    }
-  };
-
-  const handleActivateUser = async (userId, username) => {
-    if (!window.confirm(`Are you sure you want to activate user "${username}"? They will be able to log in again.`)) {
-      return;
-    }
-
-    setWorkingUserId(userId);
-    setError('');
-    try {
-      const data = await activateAdminUser(userId);
-      if (data.ok) {
-        // Update user status in list
-        setAdminUsers((prev) =>
-          prev.map((u) => (u.id === userId ? { ...u, is_active: true } : u))
-        );
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to activate user');
-    } finally {
-      setWorkingUserId(null);
-    }
-  };
-
+  // Get current user from the list (which has created_at) or fallback to admin object
+  // Prefer the user from adminUsers list as it has complete data including created_at
   const currentUser = adminUsers.find((u) => u.id === admin?.id) || admin;
 
   return (
@@ -125,20 +82,40 @@ export default function Profile({ admin }) {
               </label>
               <div className="text-base">
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gurulink-accent/20 text-gurulink-accent border border-gurulink-accent/30">
-                  {currentUser?.role || 'admin'}
+                  {currentUser?.role === 'super_admin' ? 'Super Admin' : currentUser?.role === 'admin' ? 'Admin' : currentUser?.role === 'viewer' ? 'Viewer' : currentUser?.role || 'Admin'}
                 </span>
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-gurulink-textSecondary mb-1">
-                Account Created
-              </label>
-              <div className="text-base text-gurulink-text bg-gurulink-bgSoft px-3 py-2 rounded border border-gurulink-border">
-                {currentUser?.created_at
-                  ? new Date(currentUser.created_at).toLocaleString()
-                  : '—'}
+            {!loading || currentUser?.created_at ? (
+              <div>
+                <label className="block text-sm font-semibold text-gurulink-textSecondary mb-1">
+                  Account Created
+                </label>
+                <div className="text-base text-gurulink-text bg-gurulink-bgSoft px-3 py-2 rounded border border-gurulink-border">
+                  {currentUser?.created_at ? (
+                    (() => {
+                      try {
+                        const date = new Date(currentUser.created_at);
+                        if (isNaN(date.getTime())) {
+                          return 'Invalid date';
+                        }
+                        return date.toLocaleString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        });
+                      } catch (e) {
+                        return 'Invalid date';
+                      }
+                    })()
+                  ) : (
+                    '—'
+                  )}
+                </div>
               </div>
-            </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -148,8 +125,8 @@ export default function Profile({ admin }) {
           <div className="border-b border-gurulink-border px-6 py-4 bg-gurulink-bgSoft">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-gurulink-primary">All Admin Users</h2>
-                <p className="text-sm text-gurulink-textSecondary">List of all admin accounts</p>
+                <h2 className="text-lg font-bold text-gurulink-primary">All Users</h2>
+                <p className="text-sm text-gurulink-textSecondary">List of all accounts</p>
               </div>
               <button
                 onClick={loadUsers}
@@ -217,7 +194,7 @@ export default function Profile({ admin }) {
                         </td>
                         <td className="px-4 py-3">
                           <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-gurulink-accent/20 text-gurulink-accent border border-gurulink-accent/30">
-                            {user.role}
+                            {user.role === 'super_admin' ? 'Super Admin' : user.role === 'admin' ? 'Admin' : user.role === 'viewer' ? 'Viewer' : user.role}
                           </span>
                         </td>
                         <td className="px-4 py-3">
@@ -239,38 +216,16 @@ export default function Profile({ admin }) {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             {user.id !== admin?.id && user.role !== 'super_admin' && (
-                              <>
-                                {user.is_active !== false ? (
-                                  <button
-                                    onClick={() => handleDeactivateUser(user.id, user.username)}
-                                    disabled={workingUserId === user.id}
-                                    className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed bg-yellow-600 text-white hover:bg-yellow-500"
-                                  >
-                                    {workingUserId === user.id ? 'Deactivating...' : 'Deactivate'}
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => handleActivateUser(user.id, user.username)}
-                                    disabled={workingUserId === user.id}
-                                    className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed bg-green-600 text-white hover:bg-green-500"
-                                  >
-                                    {workingUserId === user.id ? 'Activating...' : 'Activate'}
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleDeleteUser(user.id, user.username)}
-                                  disabled={deletingUserId === user.id || workingUserId === user.id}
-                                  className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 text-white hover:bg-red-500"
-                                >
-                                  {deletingUserId === user.id ? 'Deleting...' : 'Delete'}
-                                </button>
-                              </>
+                              <button
+                                onClick={() => handleDeleteUser(user.id, user.username)}
+                                disabled={deletingUserId === user.id}
+                                className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed bg-red-600 text-white hover:bg-red-500"
+                              >
+                                {deletingUserId === user.id ? 'Deleting...' : 'Delete'}
+                              </button>
                             )}
                             {user.id === admin?.id && (
                               <span className="text-xs text-gurulink-textMuted italic">Current user</span>
-                            )}
-                            {user.role === 'super_admin' && (
-                              <span className="text-xs text-gurulink-textMuted italic">Protected - Cannot be removed or deactivated</span>
                             )}
                           </div>
                         </td>
