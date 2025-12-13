@@ -61,11 +61,6 @@ export default function Login({ onLogin }) {
             <p className="text-sm text-gurulink-textSecondary mt-2">
               Sign in to access the CRM dashboard
             </p>
-            <div className="mt-3 px-3 py-2 rounded-lg bg-gurulink-bgSoft border border-gurulink-border">
-              <p className="text-xs text-gurulink-textSecondary">
-                <span className="font-semibold text-gurulink-primary">Default:</span> Username: <span className="font-mono">superadmin</span> | Password: <span className="font-mono">admin123</span>
-              </p>
-            </div>
           </div>
 
           {error && (
